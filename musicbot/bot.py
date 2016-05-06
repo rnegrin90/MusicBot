@@ -7,6 +7,7 @@ import inspect
 import discord
 import asyncio
 import traceback
+import re
 
 from discord import utils
 from discord.object import Object
@@ -24,7 +25,7 @@ from musicbot.playlist import Playlist
 from musicbot.player import MusicPlayer
 from musicbot.config import Config, ConfigDefaults
 from musicbot.permissions import Permissions, PermissionsDefaults
-from musicbot.utils import load_file, extract_user_id, write_file, sane_round_int
+from musicbot.utils import load_file, extract_user_id, write_file, sane_round_int, append_file
 
 from . import exceptions
 from . import downloader
@@ -1658,6 +1659,31 @@ class MusicBot(discord.Client):
     async def cmd_shutdown(self):
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
+
+    async def cmd_pladd(self, message, author):
+        """
+        :param message: Video to add to the playlist
+        :param author: user invoking the message, check for permissions
+        :return: Feedback to the user
+        It will add the video to the playlist file, only if the video is a "apparently valid" youtube video and the user
+        has permissions.
+        """
+        if author.id == self.config.owner_id:
+            video_list = message.content.split(" ", 1)[1]
+
+            result_msg = ""
+
+            for video in video_list.split(" "):
+                print('Adding %s to auto playlist' % video)
+
+                if not re.match('https://www\.youtube\.com/watch\?v=\S', video):
+                    result_msg += "%s does not look like a youtube video... \n" % video
+
+                self.autoplaylist.append(video)
+                append_file(self.config.auto_playlist_file, video)
+            return Response("```Song(s) added to the end of the automatic playlist!\r %s```" % result_msg, delete_after=20)
+
+        return Response("```You don't have permissions to add a song to the automatic playlist, speak to the admin```")
 
     async def on_message(self, message):
         await self.wait_until_ready()

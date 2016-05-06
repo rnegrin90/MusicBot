@@ -72,3 +72,9 @@ def paginate(content, *, length=DISCORD_MSG_CHAR_LIMIT, reserve=0):
         chunks.append(currentchunk)
 
     return chunks
+
+
+def append_file(filename, content):
+    with open(filename, 'a') as f:
+        f.write(str(content))
+        f.write('\n')
