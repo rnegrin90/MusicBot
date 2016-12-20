@@ -9,6 +9,7 @@ import logging
 import asyncio
 import pathlib
 import traceback
+import re
 
 import aiohttp
 import discord
@@ -2297,6 +2298,31 @@ class MusicBot(discord.Client):
             data = eval('objgraph.' + func)
 
         return Response(data, codeblock='py')
+		
+    async def cmd_pladd(self, message, author):
+        """
+        :param message: Video to add to the playlist
+        :param author: user invoking the message, check for permissions
+        :return: Feedback to the user
+        It will add the video to the playlist file, only if the video is a "apparently valid" youtube video and the user
+        has permissions.
+        """
+        if author.id == self.config.owner_id:
+            video_list = message.content.split(" ", 1)[1]
+
+            result_msg = ""
+
+            for video in video_list.split(" "):
+                print('Adding %s to auto playlist' % video)
+
+                if not re.match('https://www\.youtube\.com/watch\?v=\S', video):
+                    result_msg += "%s does not look like a youtube video... \n" % video
+
+                self.autoplaylist.append(video)
+                append_file(self.config.auto_playlist_file, video)
+            return Response("```Song(s) added to the end of the automatic playlist!\r %s```" % result_msg, delete_after=20)
+
+        return Response("```You don't have permissions to add a song to the automatic playlist, speak to the admin```")
 
     @dev_only
     async def cmd_debug(self, message, _player, *, data):
