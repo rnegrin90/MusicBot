@@ -35,7 +35,7 @@ from .opus_loader import load_opus_lib
 from .config import Config, ConfigDefaults
 from .permissions import Permissions, PermissionsDefaults
 from .constructs import SkipState, Response, VoiceStateUpdate
-from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta
+from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta, append_file
 
 from .constants import VERSION as BOTVERSION
 from .constants import DISCORD_MSG_CHAR_LIMIT, AUDIO_CACHE_PATH
@@ -2117,6 +2117,37 @@ class MusicBot(discord.Client):
 
         return Response("\N{OPEN MAILBOX WITH RAISED FLAG}", delete_after=20)
 
+    def is_valid_link(self, ):
+        YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
+        SOUNDCLOUD_LINK = ''
+        valid_formats = [YOUTUBE_VIDEO, SOUNDCLOUD_LINK]
+
+    async def cmd_pladd(self, message, author):
+        """
+        :param message: Video to add to the playlist
+        :param author: user invoking the message, check for permissions
+        :return: Feedback to the user
+        It will add the video to the playlist file, only if the video is a "apparently valid" youtube video and the user
+        has permissions.
+        """
+        YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
+
+        if author.id == self.config.owner_id:
+            video_list = message.content.split(" ", 1)[1]
+            for video in video_list.split(" "):
+                p = re.compile(YOUTUBE_VIDEO)
+                if not p.match(video):
+                    return Response("```%s is not a valid link.\n Check command help```" % video, delete_after=20)
+                if any(p.search(video).group(2) in s for s in self.autoplaylist):
+                    return Response("```%s is already on the autoplaylist!```" % video, delete_after=20)
+                log.info('Adding %s to auto playlist' % video)
+                self.autoplaylist.append(video)
+                append_file(self.config.auto_playlist_file, video)
+            return Response("```Song(s) added to the end of the automatic playlist!```", delete_after=20)
+
+        return Response("```You don't have permissions to add a song to the automatic playlist, speak to the admin```",
+                        delete_after=20)
+
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
         Usage:
@@ -2337,31 +2368,6 @@ class MusicBot(discord.Client):
             result = await result
 
         return Response(codeblock.format(result))
-
-    async def cmd_pladd(self, message, author):
-        """
-        :param message: Video to add to the playlist
-        :param author: user invoking the message, check for permissions
-        :return: Feedback to the user
-        It will add the video to the playlist file, only if the video is a "apparently valid" youtube video and the user
-        has permissions.
-        """
-        if author.id == self.config.owner_id:
-            video_list = message.content.split(" ", 1)[1]
-
-            result_msg = ""
-
-            for video in video_list.split(" "):
-                print('Adding %s to auto playlist' % video)
-
-                if not re.match('https://www\.youtube\.com/watch\?v=\S', video):
-                    result_msg += "%s does not look like a youtube video... \n" % video
-
-                self.autoplaylist.append(video)
-                append_file(self.config.auto_playlist_file, video)
-            return Response("```Song(s) added to the end of the automatic playlist!\r %s```" % result_msg, delete_after=20)
-
-        return Response("```You don't have permissions to add a song to the automatic playlist, speak to the admin```")
 
     async def on_message(self, message):
         await self.wait_until_ready()

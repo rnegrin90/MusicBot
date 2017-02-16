@@ -64,7 +64,6 @@ def paginate(content, *, length=DISCORD_MSG_CHAR_LIMIT, reserve=0):
     return chunks
 
 
-<<<<<<< HEAD
 async def get_header(session, url, headerfield=None, *, timeout=5):
     with aiohttp.Timeout(timeout):
         async with session.head(url) as response:
@@ -154,9 +153,8 @@ def objdiff(obj1, obj2, *, access_attr=None, depth=0):
 
 def color_supported():
     return hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
-=======
+
 def append_file(filename, content):
     with open(filename, 'a') as f:
         f.write(str(content))
         f.write('\n')
->>>>>>> b7bc7aaf63bf74c23eb547ef26e1308627a7556d
