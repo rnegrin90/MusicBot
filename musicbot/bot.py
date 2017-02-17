@@ -2122,7 +2122,7 @@ class MusicBot(discord.Client):
         SOUNDCLOUD_LINK = ''
         valid_formats = [YOUTUBE_VIDEO, SOUNDCLOUD_LINK]
 
-    async def cmd_pladd(self, message, author):
+    async def cmd_pladd(self, message, player):
         """
         :param message: Video to add to the playlist
         :param author: user invoking the message, check for permissions
@@ -2132,21 +2132,24 @@ class MusicBot(discord.Client):
         """
         YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
 
-        if author.id == self.config.owner_id:
-            video_list = message.content.split(" ", 1)[1]
-            for video in video_list.split(" "):
-                p = re.compile(YOUTUBE_VIDEO)
-                if not p.match(video):
-                    return Response("```%s is not a valid link.\n Check command help```" % video, delete_after=20)
-                if any(p.search(video).group(2) in s for s in self.autoplaylist):
-                    return Response("```%s is already on the autoplaylist!```" % video, delete_after=20)
-                log.info('Adding %s to auto playlist' % video)
-                self.autoplaylist.append(video)
-                append_file(self.config.auto_playlist_file, video)
-            return Response("```Song(s) added to the end of the automatic playlist!```", delete_after=20)
-
-        return Response("```You don't have permissions to add a song to the automatic playlist, speak to the admin```",
-                        delete_after=20)
+        response = []
+        video_list = message.content.split(" ", 1)
+        if len(video_list) < 2:
+            video_list.append(player.current_entry.url)
+        for video in video_list[1].split(" "):
+            p = re.compile(YOUTUBE_VIDEO)
+            if not p.match(video):
+                response.append("%s is not a valid link." % video)
+                continue
+            if any(p.search(video).group(2) in s for s in self.autoplaylist):
+                response.append("%s is already on the autoplaylist!" % video)
+                continue
+            log.info('Adding %s to auto playlist' % video)
+            self.autoplaylist.append(video)
+            append_file(self.config.auto_playlist_file, video)
+            response.append("%s added to the autoplaylist!" % video)
+        if len(response) > 0:
+            return Response("```%s```" % "\n".join(response), delete_after=20)
 
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
@@ -2295,7 +2298,6 @@ class MusicBot(discord.Client):
             raise exceptions.CommandError("Unable to change avatar: {}".format(e), expire_in=20)
 
         return Response("\N{OK HAND SIGN}", delete_after=20)
-
 
     async def cmd_disconnect(self, server):
         await self.disconnect_voice_client(server)
