@@ -24,6 +24,7 @@ from discord.enums import ChannelType
 from discord.ext.commands.bot import _get_variable
 from discord.http import _func_
 
+from musicbot.autoplaylist_provider import PlaylistProvider
 from . import exceptions
 from . import downloader
 
@@ -62,8 +63,11 @@ class MusicBot(discord.Client):
         self.config = Config(config_file)
         self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
 
+        pl_provider = PlaylistProvider(config_file)
+
         self.blacklist = set(load_file(self.config.blacklist_file))
-        self.autoplaylist = load_file(self.config.auto_playlist_file)
+
+        self.autoplaylist = pl_provider.get_track_list()
 
         self.aiolocks = defaultdict(asyncio.Lock)
         self.downloader = downloader.Downloader(download_folder='audio_cache')
