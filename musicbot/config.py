@@ -70,6 +70,11 @@ class Config:
 
         self.find_autoplaylist()
 
+        self.remote_auto_playlist = config.get('MusicBot', 'CloudPlaylist', fallback=ConfigDefaults.remote_auto_playlist)
+        self.azure_account = config.get('Credentials', 'AzureAccount', fallback=None)
+        self.azure_key = config.get('Credentials', 'AzureKey', fallback=None)
+        self.table_name = config.get('Credentials', 'RemoteList', fallback=None)
+
 
     def run_checks(self):
         """
@@ -284,6 +289,8 @@ class ConfigDefaults:
     options_file = 'config/options.ini'
     blacklist_file = 'config/blacklist.txt'
     auto_playlist_file = 'config/autoplaylist.txt' # this will change when I add playlists
+
+    remote_auto_playlist = False
 
 setattr(ConfigDefaults, codecs.decode(b'ZW1haWw=', '\x62\x61\x73\x65\x36\x34').decode('ascii'), None)
 setattr(ConfigDefaults, codecs.decode(b'cGFzc3dvcmQ=', '\x62\x61\x73\x65\x36\x34').decode('ascii'), None)

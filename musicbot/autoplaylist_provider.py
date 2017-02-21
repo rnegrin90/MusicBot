@@ -15,7 +15,8 @@ class AzureTableProvider:
         return self.table_service.query_entities(self.target_table)
 
     def remove(self, item):
-        tasks = self.table_service.query_entities(self.target_table, filter="Link eq '%'" % item)
+        query_str = "Link eq '%s'" % item
+        tasks = self.table_service.query_entities(self.target_table, filter=query_str)
         if any(tasks):
             for task in tasks:
                 self.table_service.delete_entity(self.target_table, task['PartitionKey'], task['RowKey'])
