@@ -321,6 +321,13 @@ class Playlist(EventEmitter, Serializable):
         if self.entries:
             return self.entries[0]
 
+    def pop(self, pos):
+        """
+            Removes the item at pos
+        """
+        if self.entries:
+            self.entries.remove(self.entries[pos])
+
     async def estimate_time_until(self, position, player):
         """
             (very) Roughly estimates the time till the queue will 'position'

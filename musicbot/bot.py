@@ -9,7 +9,6 @@ import logging
 import asyncio
 import pathlib
 import traceback
-import re
 
 import aiohttp
 import discord
@@ -35,7 +34,7 @@ from .opus_loader import load_opus_lib
 from .config import Config, ConfigDefaults
 from .permissions import Permissions, PermissionsDefaults
 from .constructs import SkipState, Response, VoiceStateUpdate
-from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta, append_file
+from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta, append_file, remove_from_file, is_valid_link
 
 from .constants import VERSION as BOTVERSION
 from .constants import DISCORD_MSG_CHAR_LIMIT, AUDIO_CACHE_PATH
@@ -1837,8 +1836,10 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response('\N{PUT LITTER IN ITS PLACE SYMBOL}', delete_after=20)
 
-    async def cmd_pop(self, player, permissions, item=0):
-        if permissions.instaskip:
+    async def cmd_pop(self, author, player, permissions, item=0):
+        if author.id == self.config.owner_id \
+                or permissions.instaskip \
+                or author == player.current_entry.meta.get('author', None):
             if player.playlist.peek():
                 song = player.playlist.pop(item)
                 song.meta.get('author')
@@ -1847,6 +1848,8 @@ class MusicBot(discord.Client):
                     reply=True,
                     delete_after=20
                 )
+            else:
+                return Response('```There is no song in the queue to remove!```')
         else:
             raise exceptions.CommandError("You don't have permissions to remove items from the queue", expire_in=20)
 
@@ -2117,37 +2120,48 @@ class MusicBot(discord.Client):
 
         return Response("\N{OPEN MAILBOX WITH RAISED FLAG}", delete_after=20)
 
-    def is_valid_link(self, ):
-        YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
-        SOUNDCLOUD_LINK = ''
-        valid_formats = [YOUTUBE_VIDEO, SOUNDCLOUD_LINK]
-
     async def cmd_pladd(self, message, player):
         """
-        :param message: Video to add to the playlist
-        :param author: user invoking the message, check for permissions
-        :return: Feedback to the user
-        It will add the video to the playlist file, only if the video is a "apparently valid" youtube video and the user
-        has permissions.
+        Usage:
+            {command_prefix}pladd [url [url [...]]]
+        Adds the song currently playing or the specified songs in the list to the autoplay list
         """
-        YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
-
         response = []
         video_list = message.content.split(" ", 1)
         if len(video_list) < 2:
             video_list.append(player.current_entry.url)
         for video in video_list[1].split(" "):
-            p = re.compile(YOUTUBE_VIDEO)
-            if not p.match(video):
-                response.append("%s is not a valid link." % video)
+            result = is_valid_link(video)
+            if not result["success"]:
+                response.append(result["message"])
                 continue
-            if any(p.search(video).group(2) in s for s in self.autoplaylist):
+            if any(result["name"] in s for s in self.autoplaylist):
                 response.append("%s is already on the autoplaylist!" % video)
                 continue
             log.info('Adding %s to auto playlist' % video)
             self.autoplaylist.append(video)
             append_file(self.config.auto_playlist_file, video)
-            response.append("%s added to the autoplaylist!" % video)
+            response.append(result["message"])
+        if len(response) > 0:
+            return Response("```%s```" % "\n".join(response), delete_after=20)
+
+    async def cmd_plremove(self, message, player):
+        """
+        Usage:
+            {command_prefix}plremove [url [url [...]]]
+        Removes the song currently playing or the specified songs in the list.
+        """
+        response = []
+        video_list = message.content.split(" ", 1)
+        if len(video_list) < 2:
+            video_list.append(player.current_entry.url)
+        for video in video_list[1].split(" "):
+            if any(video in s for s in self.autoplaylist):
+                remove_from_file(self.config.auto_playlist_file, video)
+                self.autoplaylist.remove(video)
+                response.append("%s removed from autoplaylist!" % video)
+                continue
+            response.append("%s is not on the autoplaylist!" % video)
         if len(response) > 0:
             return Response("```%s```" % "\n".join(response), delete_after=20)
 
