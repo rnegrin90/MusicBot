@@ -1840,18 +1840,22 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response('\N{PUT LITTER IN ITS PLACE SYMBOL}', delete_after=20)
 
-    async def cmd_pop(self, author, player, permissions, item=0):
+    async def cmd_pop(self, author, player, permissions, item=1):
         if author.id == self.config.owner_id \
                 or permissions.instaskip \
                 or author == player.current_entry.meta.get('author', None):
             if player.playlist.peek():
-                song = player.playlist.pop(item)
-                song.meta.get('author')
-                return Response(
-                    '\n**{}** has been removed from the queue.'.format(song.title),
-                    reply=True,
-                    delete_after=20
-                )
+                try:
+                    song = player.playlist.pop(int(item) - 1)
+                    return Response('**{}** has been removed from the queue.'.format(song.title),
+                                    reply=True,
+                                    delete_after=20)
+                except ValueError:
+                    return Response('**%s** is not a number!' % item, delete_after=20)
+                except IndexError:
+                    return Response('It has to be a number between 1 and %s' % len(player.playlist),
+                                    reply=True,
+                                    delete_after=20)
             else:
                 return Response('```There is no song in the queue to remove!```')
         else:

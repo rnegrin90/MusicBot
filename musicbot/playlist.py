@@ -326,7 +326,10 @@ class Playlist(EventEmitter, Serializable):
             Removes the item at pos
         """
         if self.entries:
-            self.entries.remove(self.entries[pos])
+            obj = self.entries[pos]
+            self.entries.remove(obj)
+            return obj
+        return False
 
     async def estimate_time_until(self, position, player):
         """
