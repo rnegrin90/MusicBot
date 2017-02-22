@@ -1840,26 +1840,34 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response('\N{PUT LITTER IN ITS PLACE SYMBOL}', delete_after=20)
 
-    async def cmd_pop(self, author, player, permissions, item=1):
-        if author.id == self.config.owner_id \
-                or permissions.instaskip \
-                or author == player.current_entry.meta.get('author', None):
-            if player.playlist.peek():
-                try:
-                    song = player.playlist.pop(int(item) - 1)
-                    return Response('**{}** has been removed from the queue.'.format(song.title),
-                                    reply=True,
-                                    delete_after=20)
-                except ValueError:
-                    return Response('**%s** is not a number!' % item, delete_after=20)
-                except IndexError:
-                    return Response('It has to be a number between 1 and %s' % len(player.playlist),
-                                    reply=True,
-                                    delete_after=20)
+    async def cmd_dequeue(self, author, player, permissions, item=1):
+        """
+        Usage:
+            {command_prefix}dequeue [position_on_queue]
+
+        It will remove from the queue the element in that position. If no parameter provided, it will
+        remove the first element.
+        """
+        try:
+            if author.id == self.config.owner_id \
+                    or permissions.instaskip \
+                    or author == player.playlist.entries[int(item) - 1].meta.get('author', None):
+                if player.playlist.peek():
+                    try:
+                        song = player.playlist.remove(int(item) - 1)
+                        return Response('**{}** has been removed from the queue.'.format(song.title),
+                                        reply=True,
+                                        delete_after=20)
+                    except IndexError:
+                        return Response('It has to be a number between 1 and %s' % len(player.playlist),
+                                        reply=True,
+                                        delete_after=20)
+                else:
+                    return Response('```There is no song in the queue to remove!```')
             else:
-                return Response('```There is no song in the queue to remove!```')
-        else:
-            raise exceptions.CommandError("You don't have permissions to remove items from the queue", expire_in=20)
+                raise exceptions.CommandError("You don't have permissions to remove items from the queue", expire_in=20)
+        except ValueError:
+            return Response('**%s** is not a number!' % item, delete_after=20)
 
 
     async def cmd_skip(self, player, channel, author, message, permissions, voice_channel):

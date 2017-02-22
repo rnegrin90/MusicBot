@@ -321,7 +321,7 @@ class Playlist(EventEmitter, Serializable):
         if self.entries:
             return self.entries[0]
 
-    def pop(self, pos):
+    def remove(self, pos):
         """
             Removes the item at pos
         """
