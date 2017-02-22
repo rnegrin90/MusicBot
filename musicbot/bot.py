@@ -63,11 +63,11 @@ class MusicBot(discord.Client):
         self.config = Config(config_file)
         self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
 
-        pl_provider = PlaylistProvider(config_file)
+        self.pl_provider = PlaylistProvider(config_file)
 
         self.blacklist = set(load_file(self.config.blacklist_file))
 
-        self.autoplaylist = pl_provider.get_track_list()
+        self.autoplaylist = self.pl_provider.get_track_list()
 
         self.aiolocks = defaultdict(asyncio.Lock)
         self.downloader = downloader.Downloader(download_folder='audio_cache')
@@ -340,7 +340,7 @@ class MusicBot(discord.Client):
 
             if delete_from_ap:
                 log.info("Updating autoplaylist")
-                write_file(self.config.auto_playlist_file, self.autoplaylist)
+                self.pl_provider.remove_track(song_url)
 
     @ensure_appinfo
     async def generate_invite_link(self, *, permissions=discord.Permissions(70380544), server=None):
@@ -2144,7 +2144,7 @@ class MusicBot(discord.Client):
                 continue
             log.info('Adding %s to auto playlist' % video)
             self.autoplaylist.append(video)
-            append_file(self.config.auto_playlist_file, video)
+            self.pl_provider.add_track(video)
             response.append(result["message"])
         if len(response) > 0:
             return Response("```%s```" % "\n".join(response), delete_after=20)
@@ -2161,7 +2161,7 @@ class MusicBot(discord.Client):
             video_list.append(player.current_entry.url)
         for video in video_list[1].split(" "):
             if any(video in s for s in self.autoplaylist):
-                remove_from_file(self.config.auto_playlist_file, video)
+                self.pl_provider.remove_track(video)
                 self.autoplaylist.remove(video)
                 response.append("%s removed from autoplaylist!" % video)
                 continue
