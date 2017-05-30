@@ -645,7 +645,7 @@ class MusicBot(discord.Client):
                         # Probably an error from a different extractor, but I've only seen youtube's
                         log.error("Error processing \"{url}\": {ex}".format(url=song_url, ex=e))
 
-                    await self.remove_from_autoplaylist(song_url, ex=e, delete_from_ap=True)
+                    await self.remove_from_autoplaylist(song_url, ex=e, delete_from_ap=False)
                     continue
 
                 except Exception as e:
