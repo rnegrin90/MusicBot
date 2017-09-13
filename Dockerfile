@@ -14,4 +14,4 @@ VOLUME /usr/src/MusicBot/config
 # Install pip dependencies
 RUN pip3 install -r requirements.txt
 
-CMD python3.5 run.py
+CMD python3.6 run.py
