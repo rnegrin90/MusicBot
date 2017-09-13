@@ -2238,7 +2238,6 @@ class MusicBot(discord.Client):
 
         return Response("\N{OPEN MAILBOX WITH RAISED FLAG}", delete_after=20)
 
-
     async def cmd_perms(self, author, channel, server, permissions):
         """
         Usage:
@@ -2257,7 +2256,6 @@ class MusicBot(discord.Client):
 
         await self.send_message(author, '\n'.join(lines))
         return Response("\N{OPEN MAILBOX WITH RAISED FLAG}", delete_after=20)
-
 
     @owner_only
     async def cmd_setname(self, leftover_args, name):
@@ -2342,6 +2340,109 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, "\N{WAVING HAND SIGN}")
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal()
+
+    async def add_role(self, member, role):
+        response_message = ""
+
+        try:
+            await self.add_roles(member, role[0])
+            response_message += f"User @{member.name} now has the role @{role[0].name}!\n"
+        except discord.Forbidden:
+            return f"```I don't have permissions to add roles :(```"
+        except discord.HTTPException:
+            response_message += f"Could not give user @{member.name} the role @{role[0].name} :(\n"
+
+        return response_message
+
+    async def remove_role(self, member, role):
+        try:
+            await self.remove_roles(member, role[0])
+            return f"Role @{role[0].name} removed from user @{member.name}!\n"
+        except discord.Forbidden:
+            return f"```I don't have permissions to remove roles :(```"
+        except discord.HTTPException:
+            return f"Could not remove role @{role[0].name} from user @{member.name} :(\n"
+
+    async def manipulate_role(self, server, author, permissions, role, action, *args):
+        if not role:
+            return Response("```You need to specify a group!```", delete_after=20)
+
+        if any(args) and not permissions.group_admin and author.id != self.config.owner_id:
+            return Response(f"```You don't have permissions to {action} this role to other people```", delete_after=20)
+
+        target_members = [author] if not any(args) else list(filter(lambda m: m.name in args, server.members))
+        #bot_roles = [r for r in server.me.roles if r.name != '@everyone']
+
+        highest_ranking_role = None
+        for rh in server.role_hierarchy:
+            highest_ranking_role = next(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
+                break
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+
+        target_role = list(filter(lambda r: r.name == role, allowed_roles))
+
+        if not any(target_role):
+            return Response(f"```Role {target_role[0].name} does not exists or I don't have permission to assign it!```", delete_after=20)
+
+        response_message = ""
+        for m in target_members:
+            response_message += await {
+                'add': self.add_role,
+                'remove': self.remove_role
+            }[action](m, target_role)
+
+        return Response(response_message, delete_after=20)
+
+    async def list_manipulable_roles(self, server, author, *_):
+        highest_ranking_role = None
+        for rh in server.role_hierarchy:
+            highest_ranking_role = next(role for role in server.me.roles if role.name == rh.name)  # filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
+                break
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+
+        response_message = f"These are the groups you can add/remove on the server `{server.name}`: \n ```"
+
+        for r in allowed_roles:
+            response_message += f"- {r.name}\n"
+
+        response_message += "```"
+
+        await self.send_message(author, response_message)
+        return Response(f"```Check your PMs!```", reply=True, delete_after=20)
+
+    async def cmd_group(self, author, server, permissions, leftover_args):
+        """
+        Usage:
+            {command_prefix}group (add|remove|list) [role name] [users...]
+
+        Manipulates the groups of the provided users. If no user provided, it will use the author.
+        List will send you a private message with the available groups the you can be added to.
+        """
+
+        if not any(leftover_args):
+            return Response("```You need to specify an action!```", delete_after=20)
+
+        action = leftover_args[0]
+
+        target = None
+        modifiers = []
+        if len(leftover_args) > 1:
+            target = leftover_args[1]
+            modifiers = leftover_args[2:]
+
+        result = await {
+            'add': self.manipulate_role,
+            'remove': self.manipulate_role,
+            'create': lambda *_: Response("```Not implemented yet```", delete_after=20),
+            'delete': lambda *_: Response("```Not implemented yet```", delete_after=20),
+            'list': self.list_manipulable_roles
+        }[action](server, author, permissions, target, action, *modifiers)
+
+        return result
 
     @dev_only
     async def cmd_breakpoint(self, message):

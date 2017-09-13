@@ -24,6 +24,8 @@ class PermissionsDefaults:
     AllowPlaylists = True
     InstaSkip = False
 
+    GroupAdmin = False
+
 
 class Permissions:
     def __init__(self, config_file, grant_all=None):
@@ -112,6 +114,8 @@ class PermissionGroup:
         self.allow_playlists = section_data.get('AllowPlaylists', fallback=PermissionsDefaults.AllowPlaylists)
         self.instaskip = section_data.get('InstaSkip', fallback=PermissionsDefaults.InstaSkip)
 
+        self.group_admin = section_data.get('GroupAdmin', fallback=PermissionsDefaults.GroupAdmin)
+
         self.validate()
 
     def validate(self):
@@ -147,6 +151,10 @@ class PermissionGroup:
 
         self.allow_playlists = configparser.RawConfigParser.BOOLEAN_STATES.get(
             self.allow_playlists, PermissionsDefaults.AllowPlaylists
+        )
+
+        self.group_admin = configparser.RawConfigParser.BOOLEAN_STATES.get(
+            self.group_admin, PermissionsDefaults.GroupAdmin
         )
 
         self.instaskip = configparser.RawConfigParser.BOOLEAN_STATES.get(
