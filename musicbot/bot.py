@@ -2375,11 +2375,16 @@ class MusicBot(discord.Client):
 
         highest_ranking_role = None
         for rh in server.role_hierarchy:
-            highest_ranking_role = next(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
-            if highest_ranking_role:
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
+            if any(highest_ranking_role):
                 break
+            else:
+                highest_ranking_role = None
 
-        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+        if not highest_ranking_role:
+            return Response("Something went wrong, could not find my current role", delete_after=20)
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role[0]) + 1:len(server.role_hierarchy) - 1]
 
         target_role = list(filter(lambda r: r.name == role, allowed_roles))
 
@@ -2398,11 +2403,16 @@ class MusicBot(discord.Client):
     async def list_manipulable_roles(self, server, author, *_):
         highest_ranking_role = None
         for rh in server.role_hierarchy:
-            highest_ranking_role = next(role for role in server.me.roles if role.name == rh.name)  # filter(lambda r: r.name == rh.name, server.me.roles)
-            if highest_ranking_role:
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
+            if any(highest_ranking_role):
                 break
+            else:
+                highest_ranking_role = None
 
-        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+        if not highest_ranking_role:
+            return Response("Something went wrong, could not find my current role", delete_after=20)
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role[0]) + 1:len(server.role_hierarchy) - 1]
 
         response_message = f"These are the groups you can add/remove on the server `{server.name}`: \n ```"
 
