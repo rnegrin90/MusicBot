@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import shlex
@@ -17,7 +18,7 @@ import colorlog
 from io import BytesIO, StringIO
 from functools import wraps
 from textwrap import dedent
-from datetime import timedelta
+from datetime import timedelta, datetime
 from collections import defaultdict
 
 from discord.enums import ChannelType
@@ -94,6 +95,9 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
+
+        self.alfonso_retard_cooldown = datetime.min
+        self.you_are_retarded = ["Mirad, soy {0}, he hecho una broma JAJAJAJA", "Muy bien {0}, cierra la puerta por fuera", "{0} https://i.imgur.com/f9FW2.gif?noredirect", "{0} https://www.youtube.com/watch?v=R8rwwJx-urQ", "{0} :clown:"]
 
     def __del__(self):
         # These functions return futures but it doesn't matter
@@ -2375,8 +2379,8 @@ class MusicBot(discord.Client):
 
         highest_ranking_role = None
         for rh in server.role_hierarchy:
-            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
-            if any(highest_ranking_role):
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)[0]  #filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
                 break
             else:
                 highest_ranking_role = None
@@ -2384,7 +2388,7 @@ class MusicBot(discord.Client):
         if not highest_ranking_role:
             return Response("Something went wrong, could not find my current role", delete_after=20)
 
-        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role[0]) + 1:len(server.role_hierarchy) - 1]
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
 
         target_role = list(filter(lambda r: r.name == role, allowed_roles))
 
@@ -2403,8 +2407,8 @@ class MusicBot(discord.Client):
     async def list_manipulable_roles(self, server, author, *_):
         highest_ranking_role = None
         for rh in server.role_hierarchy:
-            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)  #filter(lambda r: r.name == rh.name, server.me.roles)
-            if any(highest_ranking_role):
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)[0]  # filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
                 break
             else:
                 highest_ranking_role = None
@@ -2412,7 +2416,7 @@ class MusicBot(discord.Client):
         if not highest_ranking_role:
             return Response("Something went wrong, could not find my current role", delete_after=20)
 
-        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role[0]) + 1:len(server.role_hierarchy) - 1]
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
 
         response_message = f"These are the groups you can add/remove on the server `{server.name}`: \n ```"
 
@@ -2512,8 +2516,21 @@ class MusicBot(discord.Client):
 
         return Response(codeblock.format(result))
 
+    async def process_message(self, message):
+        if message.author.id != 139864049776197632:
+            if (datetime.now() - self.alfonso_retard_cooldown) < timedelta(minutes=1):
+                return
+
+            if ';' in message.content or 'ñ' in message.content:
+                # are they memeing?
+                if re.match(r'(.*\s+)?ñ+(\s+.*)?', message.content) or re.match(r'.*[a-zA-Z]+;[a-zA-Z]+.*', message.content):
+                    self.alfonso_retard_cooldown = datetime.now()
+                    await self.send_message(message.channel, random.sample(self.you_are_retarded, 1)[0].format(message.author.mention))
+
     async def on_message(self, message):
         await self.wait_until_ready()
+
+        await self.process_message(message)
 
         message_content = message.content.strip()
         if not message_content.startswith(self.config.command_prefix):
