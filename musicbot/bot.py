@@ -2517,7 +2517,7 @@ class MusicBot(discord.Client):
         return Response(codeblock.format(result))
 
     async def process_message(self, message):
-        if message.author.id != 139864049776197632:
+        if message.author.id not in '139864049776197632':
             if (datetime.now() - self.alfonso_retard_cooldown) < timedelta(minutes=1):
                 return
 
