@@ -1,13 +1,14 @@
-import re
 import sys
-import decimal
 import logging
 import aiohttp
+import inspect
+import re
+import decimal
+import unicodedata
 
-from hashlib import md5
 from .constants import DISCORD_MSG_CHAR_LIMIT
 
-log = logging.getLogger(__name__)
+_USER_ID_MATCH = re.compile(r'<@(\d+)>')
 
 
 def load_file(filename, skip_commented_lines=True, comment_char='#'):
@@ -32,11 +33,6 @@ def write_file(filename, contents):
         for item in contents:
             f.write(str(item))
             f.write('\n')
-
-
-def sane_round_int(x):
-    return int(decimal.Decimal(x).quantize(1, rounding=decimal.ROUND_HALF_UP))
-
 
 def paginate(content, *, length=DISCORD_MSG_CHAR_LIMIT, reserve=0):
     """
@@ -80,7 +76,6 @@ def md5sum(filename, limit=0):
         for chunk in iter(lambda: f.read(8192), b""):
             fhash.update(chunk)
     return fhash.hexdigest()[-limit:]
-
 
 def fixg(x, dp=2):
     return ('{:.%sf}' % dp).format(x).rstrip('0').rstrip('.')
@@ -159,6 +154,10 @@ def append_file(filename, content):
     with open(filename, 'a') as f:
         f.write(str(content))
         f.write('\n')
+
+def _func_():
+    # emulate __func__ from C++
+    return inspect.currentframe().f_back.f_code.co_name
 
 def remove_from_file(filename, content):
     f = open(filename, "r+")
