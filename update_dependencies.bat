@@ -1,5 +1,7 @@
 @ECHO off
 
+CHCP 65001 > NUL
+
 REM  --> Check for permissions
     IF "%PROCESSOR_ARCHITECTURE%" EQU "amd64" (
 >nul 2>&1 "%SYSTEMROOT%\SysWOW64\cacls.exe" "%SYSTEMROOT%\SysWOW64\config\system"
@@ -28,7 +30,7 @@ if '%errorlevel%' NEQ '0' (
 CD /d "%~dp0"
 
 IF EXIST %SYSTEMROOT%\py.exe (
-    CMD /k C:\Windows\py.exe -3.5 -m pip install --upgrade -r requirements.txt
+    CMD /k %SYSTEMROOT%\py.exe -m pip install --upgrade -r requirements.txt
     EXIT
 )
 
