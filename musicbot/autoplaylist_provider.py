@@ -2,7 +2,7 @@ import uuid
 
 from musicbot.config import Config, ConfigDefaults
 allow_requests = True
-from azure.storage.table import TableService
+from azure.cosmosdb.table.tableservice import TableService
 
 from musicbot.utils import load_file, remove_from_file, append_file
 
