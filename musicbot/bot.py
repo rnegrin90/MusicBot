@@ -2100,7 +2100,21 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response(self.str.get('cmd-clear-reply', "Cleared `{0}`'s queue").format(player.voice_client.channel.server), delete_after=20)
 
-    async def cmd_remove(self, user_mentions, message, author, permissions, channel, player, index=None):
+    async def cmd_pop(self, player, permissions, item=0):
+        if permissions.instaskip:
+            if player.playlist.peek():
+                song = player.playlist.pop(item)
+                song.meta.get('author')
+                return Response(
+                    '\n**{}** has been removed from the queue.'.format(song.title),
+                    reply=True,
+                    delete_after=20
+                )
+        else:
+            raise exceptions.CommandError("You don't have permissions to remove items from the queue", expire_in=20)
+
+
+    async def cmd_skip(self, player, channel, author, message, permissions, voice_channel):
         """
         Usage:
             {command_prefix}remove [# in queue]
