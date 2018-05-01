@@ -19,12 +19,13 @@ import colorlog
 from io import BytesIO, StringIO
 from functools import wraps
 from textwrap import dedent
-from datetime import timedelta
+from datetime import timedelta, datetime
 from collections import defaultdict
 
 from discord.enums import ChannelType
 from discord.ext.commands.bot import _get_variable
 
+from musicbot.autoplaylist_provider import PlaylistProvider
 from . import exceptions
 from . import downloader
 
@@ -35,7 +36,7 @@ from .opus_loader import load_opus_lib
 from .config import Config, ConfigDefaults
 from .permissions import Permissions, PermissionsDefaults
 from .constructs import SkipState, Response, VoiceStateUpdate
-from .utils import load_file, write_file, fixg, ftimedelta, _func_
+from .utils import load_file, write_file, fixg, ftimedelta, _func_, append_file, remove_from_file, is_valid_link
 from .spotify import Spotify
 from .json import Json
 
@@ -54,7 +55,7 @@ class MusicBot(discord.Client):
             sys.stdout.write("\x1b]2;MusicBot {}\x07".format(BOTVERSION))
         except:
             pass
-        
+
         print()
 
         if config_file is None:
@@ -73,8 +74,11 @@ class MusicBot(discord.Client):
         self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
         self.str = Json(self.config.i18n_file)
 
+        self.pl_provider = PlaylistProvider(config_file)
+
         self.blacklist = set(load_file(self.config.blacklist_file))
-        self.autoplaylist = load_file(self.config.auto_playlist_file)
+
+        self.autoplaylist = self.pl_provider.get_track_list()
 
         self.aiolocks = defaultdict(asyncio.Lock)
         self.downloader = downloader.Downloader(download_folder='audio_cache')
@@ -113,6 +117,9 @@ class MusicBot(discord.Client):
                 self.config._spotify = False
             else:
                 log.info('Authenticated with Spotify successfully using client ID and secret.')
+
+        self.alfonso_retard_cooldown = datetime.min
+        self.you_are_retarded = ["Mirad, soy {0}, he hecho una broma JAJAJAJA", "Muy bien {0}, cierra la puerta por fuera", "{0} https://i.imgur.com/f9FW2.gif?noredirect", "{0} https://www.youtube.com/watch?v=R8rwwJx-urQ", "{0} :clown:"]
 
     def __del__(self):
         # These functions return futures but it doesn't matter
@@ -304,7 +311,7 @@ class MusicBot(discord.Client):
                             player.once('play', lambda player, **_: _autopause(player))
                         if not player.playlist.entries:
                             await self.on_player_finished_playing(player)
-                
+
                 except Exception:
                     log.debug("Error joining {0.server.name}/{0.name}".format(channel), exc_info=True)
                     log.error("Failed to join {0.server.name}/{0.name}".format(channel))
@@ -364,7 +371,7 @@ class MusicBot(discord.Client):
 
             if delete_from_ap:
                 log.info("Updating autoplaylist")
-                write_file(self.config.auto_playlist_file, self.autoplaylist)
+                self.pl_provider.remove_track(song_url)
 
     @ensure_appinfo
     async def generate_invite_link(self, *, permissions=discord.Permissions(70380544), server=None):
@@ -629,9 +636,9 @@ class MusicBot(discord.Client):
                         self.server_specific_data[channel.server]['last_np_msg'] = None
                     break  # This is probably redundant
 
-            
+
             author_perms = self.permissions.for_user(author)
-            
+
             if author not in player.voice_client.channel.voice_members and author_perms.skip_when_absent:
                 newmsg = 'Skipping next song in `%s`: `%s` added by `%s` as queuer not in voice' % (
                     player.voice_client.channel.name, entry.title, entry.meta['author'].name)
@@ -667,8 +674,8 @@ class MusicBot(discord.Client):
 
                 player.pause()
                 self.server_specific_data[player.voice_client.channel.server]['auto_paused'] = True
-        
-        
+
+
         if not player.playlist.entries and not player.current_entry and self.config.auto_playlist:
             if not player.autoplaylist:
                 if not self.autoplaylist:
@@ -716,7 +723,7 @@ class MusicBot(discord.Client):
 
                 # Do I check the initial conditions again?
                 # not (not player.playlist.entries and not player.current_entry and self.config.auto_playlist)
-                
+
                 if self.config.auto_pause:
                     player.once('play', lambda player, **_: _autopause(player))
 
@@ -1176,7 +1183,7 @@ class MusicBot(discord.Client):
         else:
             log.info("Not autojoining any voice channels")
             autojoin_channels = set()
-        
+
         if self.config.show_config_at_start:
             print(flush=True)
             log.info("Options:")
@@ -2145,6 +2152,35 @@ class MusicBot(discord.Client):
                 self.str.get('cmd-remove-noperms', "You do not have the valid permissions to remove that entry from the queue, make sure you're the one who queued it or have instant skip permissions"), expire_in=20
             )
 
+    async def cmd_dequeue(self, author, player, permissions, item=1):
+        """
+        Usage:
+            {command_prefix}dequeue [position_on_queue]
+
+        It will remove from the queue the element in that position. If no parameter provided, it will
+        remove the first element.
+        """
+        try:
+            if author.id == self.config.owner_id \
+                    or permissions.instaskip \
+                    or author == player.playlist.entries[int(item) - 1].meta.get('author', None):
+                if player.playlist.peek():
+                    try:
+                        song = player.playlist.remove(int(item) - 1)
+                        return Response('**{}** has been removed from the queue.'.format(song.title),
+                                        reply=True,
+                                        delete_after=20)
+                    except IndexError:
+                        return Response('It has to be a number between 1 and %s' % len(player.playlist),
+                                        reply=True,
+                                        delete_after=20)
+                else:
+                    return Response('```There is no song in the queue to remove!```')
+            else:
+                raise exceptions.CommandError("You don't have permissions to remove items from the queue", expire_in=20)
+        except ValueError:
+            return Response('**%s** is not a number!' % item, delete_after=20)
+
     async def cmd_skip(self, player, channel, author, message, permissions, voice_channel, param=''):
         """
         Usage:
@@ -2444,6 +2480,51 @@ class MusicBot(discord.Client):
 
         return Response("Sent a message with a playlist file.", delete_after=20)
 
+    async def cmd_pladd(self, message, player):
+        """
+        Usage:
+            {command_prefix}pladd [url [url [...]]]
+        Adds the song currently playing or the specified songs in the list to the autoplay list
+        """
+        response = []
+        video_list = message.content.split(" ", 1)
+        if len(video_list) < 2:
+            video_list.append(player.current_entry.url)
+        for video in video_list[1].split(" "):
+            result = is_valid_link(video)
+            if not result["success"]:
+                response.append(result["message"])
+                continue
+            if any(result["name"] in s for s in self.autoplaylist):
+                response.append("%s is already on the autoplaylist!" % video)
+                continue
+            log.info('Adding %s to auto playlist' % video)
+            self.autoplaylist.append(video)
+            self.pl_provider.add_track(video)
+            response.append(result["message"])
+        if len(response) > 0:
+            return Response("```%s```" % "\n".join(response), delete_after=20)
+
+    async def cmd_plremove(self, message, player):
+        """
+        Usage:
+            {command_prefix}plremove [url [url [...]]]
+        Removes the song currently playing or the specified songs in the list.
+        """
+        response = []
+        video_list = message.content.split(" ", 1)
+        if len(video_list) < 2:
+            video_list.append(player.current_entry.url)
+        for video in video_list[1].split(" "):
+            if any(video in s for s in self.autoplaylist):
+                self.pl_provider.remove_track(video)
+                self.autoplaylist.remove(video)
+                response.append("%s removed from autoplaylist!" % video)
+                continue
+            response.append("%s is not on the autoplaylist!" % video)
+        if len(response) > 0:
+            return Response("```%s```" % "\n".join(response), delete_after=20)
+
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
         Usage:
@@ -2525,7 +2606,6 @@ class MusicBot(discord.Client):
         await self.safe_send_message(author, '\n'.join(lines))
         return Response("\N{OPEN MAILBOX WITH RAISED FLAG}", delete_after=20)
 
-
     @owner_only
     async def cmd_setname(self, leftover_args, name):
         """
@@ -2598,7 +2678,6 @@ class MusicBot(discord.Client):
 
         return Response("Changed the bot's avatar.", delete_after=20)
 
-
     async def cmd_disconnect(self, server):
         await self.disconnect_voice_client(server)
         return Response("Disconnected from `{0.name}`".format(server), delete_after=20)
@@ -2616,11 +2695,11 @@ class MusicBot(discord.Client):
 
     async def cmd_shutdown(self, channel):
         await self.safe_send_message(channel, "\N{WAVING HAND SIGN}")
-        
+
         player = self.get_player_in(channel.server)
         if player and player.is_paused:
             player.resume()
-        
+
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal()
 
@@ -2642,6 +2721,119 @@ class MusicBot(discord.Client):
                 raise exceptions.CommandError('No server was found with the ID or name as `{0}`'.format(val))
         await self.leave_server(t)
         return Response('Left the server: `{0.name}` (Owner: `{0.owner.name}`, ID: `{0.id}`)'.format(t))
+
+    async def add_role(self, member, role):
+        response_message = ""
+
+        try:
+            await self.add_roles(member, role[0])
+            response_message += f"User @{member.name} now has the role @{role[0].name}!\n"
+        except discord.Forbidden:
+            return f"```I don't have permissions to add roles :(```"
+        except discord.HTTPException:
+            response_message += f"Could not give user @{member.name} the role @{role[0].name} :(\n"
+
+        return response_message
+
+    async def remove_role(self, member, role):
+        try:
+            await self.remove_roles(member, role[0])
+            return f"Role @{role[0].name} removed from user @{member.name}!\n"
+        except discord.Forbidden:
+            return f"```I don't have permissions to remove roles :(```"
+        except discord.HTTPException:
+            return f"Could not remove role @{role[0].name} from user @{member.name} :(\n"
+
+    async def manipulate_role(self, server, author, permissions, role, action, *args):
+        if not role:
+            return Response("```You need to specify a group!```", delete_after=20)
+
+        if any(args) and not permissions.group_admin and author.id != self.config.owner_id:
+            return Response(f"```You don't have permissions to {action} this role to other people```", delete_after=20)
+
+        target_members = [author] if not any(args) else list(filter(lambda m: m.name in args, server.members))
+        #bot_roles = [r for r in server.me.roles if r.name != '@everyone']
+
+        highest_ranking_role = None
+        for rh in server.role_hierarchy:
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)[0]  #filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
+                break
+            else:
+                highest_ranking_role = None
+
+        if not highest_ranking_role:
+            return Response("Something went wrong, could not find my current role", delete_after=20)
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+
+        target_role = list(filter(lambda r: r.name == role, allowed_roles))
+
+        if not any(target_role):
+            return Response(f"```Role {target_role[0].name} does not exists or I don't have permission to assign it!```", delete_after=20)
+
+        response_message = ""
+        for m in target_members:
+            response_message += await {
+                'add': self.add_role,
+                'remove': self.remove_role
+            }[action](m, target_role)
+
+        return Response(response_message, delete_after=20)
+
+    async def list_manipulable_roles(self, server, author, *_):
+        highest_ranking_role = None
+        for rh in server.role_hierarchy:
+            highest_ranking_role = list(role for role in server.me.roles if role.name == rh.name)[0]  # filter(lambda r: r.name == rh.name, server.me.roles)
+            if highest_ranking_role:
+                break
+            else:
+                highest_ranking_role = None
+
+        if not highest_ranking_role:
+            return Response("Something went wrong, could not find my current role", delete_after=20)
+
+        allowed_roles = server.role_hierarchy[server.role_hierarchy.index(highest_ranking_role) + 1:len(server.role_hierarchy) - 1]
+
+        response_message = f"These are the groups you can add/remove on the server `{server.name}`: \n ```"
+
+        for r in allowed_roles:
+            response_message += f"- {r.name}\n"
+
+        response_message += "```"
+
+        await self.send_message(author, response_message)
+        return Response(f"```Check your PMs!```", reply=True, delete_after=20)
+
+    async def cmd_group(self, author, server, permissions, leftover_args):
+        """
+        Usage:
+            {command_prefix}group (add|remove|list) [role name] [users...]
+
+        Manipulates the groups of the provided users. If no user provided, it will use the author.
+        List will send you a private message with the available groups the you can be added to.
+        """
+
+        if not any(leftover_args):
+            return Response("```You need to specify an action!```", delete_after=20)
+
+        action = leftover_args[0]
+
+        target = None
+        modifiers = []
+        if len(leftover_args) > 1:
+            target = leftover_args[1]
+            modifiers = leftover_args[2:]
+
+        result = await {
+            'add': self.manipulate_role,
+            'remove': self.manipulate_role,
+            'create': lambda *_: Response("```Not implemented yet```", delete_after=20),
+            'delete': lambda *_: Response("```Not implemented yet```", delete_after=20),
+            'list': self.list_manipulable_roles
+        }[action](server, author, permissions, target, action, *modifiers)
+
+        return result
 
     @dev_only
     async def cmd_breakpoint(self, message):
@@ -2700,8 +2892,21 @@ class MusicBot(discord.Client):
 
         return Response(codeblock.format(result))
 
+    async def process_message(self, message):
+        if message.author.id not in '139864049776197632':
+            if (datetime.now() - self.alfonso_retard_cooldown) < timedelta(minutes=1):
+                return
+
+            if ';' in message.content or 'ñ' in message.content:
+                # are they memeing?
+                if re.match(r'(.*\s+)?ñ+(\s+.*)?', message.content) or re.match(r'.*[a-zA-Z]+;[a-zA-Z]+.*', message.content):
+                    self.alfonso_retard_cooldown = datetime.now()
+                    await self.send_message(message.channel, random.sample(self.you_are_retarded, 1)[0].format(message.author.mention))
+
     async def on_message(self, message):
         await self.wait_until_ready()
+
+        await self.process_message(message)
 
         message_content = message.content.strip()
         if not message_content.startswith(self.config.command_prefix):
@@ -2989,7 +3194,7 @@ class MusicBot(discord.Client):
 
                     self.server_specific_data[after.server]['auto_paused'] = True
                     player.pause()
-        else: 
+        else:
             if not state.empty():
                 if auto_paused and player.is_paused:
                     log.info(autopause_msg.format(
@@ -2997,7 +3202,7 @@ class MusicBot(discord.Client):
                         channel = state.my_voice_channel,
                         reason = ""
                     ).strip())
- 
+
                     self.server_specific_data[after.server]['auto_paused'] = False
                     player.resume()
 
