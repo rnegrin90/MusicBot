@@ -29,6 +29,8 @@ class PermissionsDefaults:
 
     Extractors = set()
 
+    GroupAdmin = False
+
 
 class Permissions:
     def __init__(self, config_file, grant_all=None):
@@ -122,6 +124,8 @@ class PermissionGroup:
 
         self.extractors = section_data.get('Extractors', fallback=PermissionsDefaults.Extractors)
 
+        self.group_admin = section_data.get('GroupAdmin', fallback=PermissionsDefaults.GroupAdmin)
+
         self.validate()
 
     def validate(self):
@@ -160,6 +164,10 @@ class PermissionGroup:
 
         self.allow_playlists = configparser.RawConfigParser.BOOLEAN_STATES.get(
             self.allow_playlists, PermissionsDefaults.AllowPlaylists
+        )
+
+        self.group_admin = configparser.RawConfigParser.BOOLEAN_STATES.get(
+            self.group_admin, PermissionsDefaults.GroupAdmin
         )
 
         self.instaskip = configparser.RawConfigParser.BOOLEAN_STATES.get(

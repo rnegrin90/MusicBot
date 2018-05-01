@@ -148,6 +148,36 @@ def objdiff(obj1, obj2, *, access_attr=None, depth=0):
 def color_supported():
     return hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
+def append_file(filename, content):
+    with open(filename, 'a') as f:
+        f.write(str(content))
+        f.write('\n')
+
+def remove_from_file(filename, content):
+    f = open(filename, "r+")
+    d = f.readlines()
+    f.seek(0)
+    for i in d:
+        if content not in i:
+            f.write(i)
+    f.truncate()
+    f.close()
+
+def is_valid_link(link):
+    YOUTUBE_VIDEO = '^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*'
+    SOUNDCLOUD_LINK = '^.*soundcloud\.com\/(.*?)\/(.*)'
+    valid_formats = [YOUTUBE_VIDEO, SOUNDCLOUD_LINK]
+    name = ''
+    match = False
+    for f in valid_formats:
+        p = re.compile(f)
+        match = match or p.match(link)
+        if p.match(link):
+            name = p.search(link).group(2)
+    if not match:
+        return {"success": False, "message": "%s is not a valid link." % link}
+    return {"success": True, "message": "%s added to the autoplaylist!" % link, "name": name}
+
 def _func_():
     # emulate __func__ from C++
     return inspect.currentframe().f_back.f_code.co_name
